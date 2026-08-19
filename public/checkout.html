@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>3DS Checkout</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 500px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 4px;
+    }
+
+    .loading {
+      color: #007bff;
+    }
+
+    .success {
+      color: #28a745;
+      background: #d4edda;
+    }
+
+    .error {
+      border: 1px solid #dc3545;
+      background: #f8d7da;
+    }
+
+    #methodContainer iframe {
+      width: 0;
+      height: 0;
+      border: none;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>3DS Secure Payment</h1>
+
+  <form id="paymentForm">
+    <div class="form-group">
+      <label>Card Number</label>
+      <input type="text" id="cardNumber" value="4005520000000129" placeholder="401699*******0022" required>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <div class="form-group" style="flex:1;">
+        <label>Expiry Month</label>
+        <input type="text" id="expiryMonth" value="12" placeholder="12" required>
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label>Expiry Year</label>
+        <input type="text" id="expiryYear" value="29" placeholder="29" required>
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label>CVV</label>
+        <input type="text" id="cvv" value="002" placeholder="002" required>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Amount (TWD)</label>
+      <input type="text" id="amount" value="1.00" placeholder="1.00" required>
+    </div>
+
+    <!-- Billing Address Section -->
+    <div class="billing-address">
+      <div class="form-group">
+        <label for="billAdrCompany">Company</label>
+        <input type="text" id="billAdrCompany" name="billAdrCompany" value="FiServ Hong Kong Inc."
+          placeholder="Company Name">
+      </div>
+
+      <div class="form-group">
+        <label for="billAdrAddr1">Address Line 1</label>
+        <input type="text" id="billAdrAddr1" name="billAdrAddr1" value="A136, Gateway 5, " placeholder="Street Address">
+      </div>
+
+      <div class="form-group">
+        <label for="billAdrAddr">Address Line 2</label>
+        <input type="text" id="billAdrAddr" name="billAdrAddr" value="Harbour City, TST"
+          placeholder="Apartment, Suite, etc.">
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <div class="form-group" style="flex:1;">
+          <label for="billAdrCity">City</label>
+          <input type="text" id="billAdrCity" name="billAdrCity" value="Kowloon" placeholder="City">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label for="billAdrRegion">Region/State</label>
+          <input type="text" id="billAdrRegion" name="billAdrRegion" value="Hong Kong" placeholder="Region or State">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label for="billAdrPostCode">Postal Code</label>
+          <input type="text" id="billAdrPostCode" name="billAdrPostCode" value="000000" placeholder="Postal Code">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label for="billAdrCountry">Country</label>
+          <input type="text" id="billAdrCountry" name="billAdrCountry" value="HK" placeholder="Country">
+        </div>
+      </div>
+
+    </div>
+
+    <button type="submit">Pay Now</button>
+  </form>
+
+  <div id="status" class="hidden"></div>
+  <div id="methodContainer"></div>
+  <div id="challengeContainer"></div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const methodContainer = document.getElementById('methodContainer');
+
+
+    function renderMethodForm(methodFormHtml) {
+
+      console.log("methodFormHtml:", methodFormHtml);
+      methodContainer.innerHTML = methodFormHtml;
+      document.getElementById("tdsMmethodForm").submit();
+      console.log('3DS Method form rendered');
+    }
+
+    function cardHolderChallenge(acsURL, cReq, sessionData) {
+
+      console.log("Redirecting....");
+      const challengeContainer = document.getElementById('challengeContainer');
+      challengeContainer.innerHTML = `
+              <form id="challenge-form" method="POST" action="${acsURL}">
+                <input type="hidden" name="creq" value="${cReq}" />
+                <input type="hidden" name="threeDSSessionData" value="${sessionData || ''}" />
+              </form>
+            `;
+      document.getElementById('challenge-form').submit();
+    }
+
+
+    window.addEventListener('message', (event) => {
+      if (event.data.type === '3DS_COMPLETE') {
+        console.log('3DS Complete:', event.data);
+        showStatus(event.data.success ? 'success' : 'error',
+          event.data.success ? 'Payment approved!' : 'Payment failed');
+      }
+    });
+
+    function showStatus(type, message) {
+      statusEl.className = type;
+      statusEl.textContent = message;
+      statusEl.classList.remove('hidden');
+    }
+
+
+    function getBrowserParams() {
+      return {
+        browserAcceptHeaders: navigator.userAgent ? 'text/html,application/xhtml+xml' : '',
+        browserIP: '',  // 服务端获取
+        browserLanguage: navigator.language || 'en-US',
+        browserColorDepth: screen.colorDepth?.toString() || '24',
+        browserScreenHeight: screen.height?.toString() || '1080',
+        browserScreenWidth: screen.width?.toString() || '1920',
+        browserTimeZone: (new Date().getTimezoneOffset() * -1).toString(),
+        browserUserAgent: navigator.userAgent || '',
+        browserJavascriptEnabled: 'true',
+        browserJavaEnabled: 'false'
+      };
+    }
+
+
+    document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
+      const expiryMonth = document.getElementById('expiryMonth').value;
+      const expiryYear = document.getElementById('expiryYear').value;
+      const cvv = document.getElementById('cvv').value;
+      const amount = document.getElementById('amount').value;
+
+      const billingAddress = {
+        company: document.getElementById('billAdrCompany').value,
+        address1: document.getElementById('billAdrAddr1').value,
+        address2: document.getElementById('billAdrAddr').value,
+        city: document.getElementById('billAdrCity').value,
+        region: document.getElementById('billAdrRegion').value,
+        postalCode: document.getElementById('billAdrPostCode').value,
+        country: document.getElementById('billAdrCountry').value
+      };
+
+      showStatus('loading', 'Processing payment...');
+
+      try {
+        const response = await fetch('/api/payment/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cardNumber,
+            expiryMonth,
+            expiryYear,
+            cvv,
+            amount,
+            currency: 'TWD',
+            browserParams: getBrowserParams(),
+            billingAddress,
+            challengeIndicator: '01'
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'WAITING' && data.methodForm) {
+          console.log('Payment initiation response method Form:', data.methodForm);
+          showStatus('loading', 'Performing 3DS verification...');
+          renderMethodForm(data.methodForm);
+
+          setTimeout(async () => {
+            await checkTransactionStatus(data.ipgTransactionId);
+
+          }, 5000);
+
+ //         cardHolderChallenge(data.acsURL, data.cReq, data.sessionData);
+
+        } else if (data.status === 'APPROVED') {
+          showStatus('success', 'Payment approved! ✅');
+        } else if (data.status === 'DECLINED') {
+          showStatus('error', 'Payment declined ❌');
+        } else {
+          showStatus('error', 'Unexpected response: ' + JSON.stringify(data));
+        }
+      } catch (error) {
+        showStatus('error', 'Error--: ' + error.message);
+      }
+    });
+
+
+    async function checkTransactionStatus(ipgTransactionId) {
+      try {
+
+        const response = await fetch(`/api/payment/status/${ipgTransactionId}`);
+        const data = await response.json();
+       
+        
+        console.log("checkTransactionStatus : ", data.transactionStatus);
+
+        if (data.transactionStatus === 'WAITING' && data?.acsURL) {
+          console.log("Fetch ipgTransactionId return : " , data);
+
+          showStatus('loading', 'Redirecting to bank for authentication...');
+          cardHolderChallenge(data.acsURL, data.cReq, data.sessionData);
+
+        } else if (data.transactionStatus === 'APPROVED') {
+          showStatus('success', 'Payment approved! ✅');
+        } else if (data.transactionStatus === 'DECLINED') {
+          showStatus('error', 'Payment declined ❌');
+        } else {
+          console.log("nothing do reason : " + data)
+        }
+      } catch (error) {
+        console.error('Status check failed:', error);
+      }
+    }
+  </script>
+</body>
+
+</html>
